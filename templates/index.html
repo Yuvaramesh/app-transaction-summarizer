@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ajeer · AI Transaction Summarizer</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-brand">
+        <span class="brand-logo">Ajeer</span>
+        <span class="brand-ai-pill">AI Summarizer</span>
+      </div>
+      <div class="topbar-user">
+        <div class="user-avatar">VK</div>
+        <div>
+          <div class="user-name">Vinoth Kumar</div>
+          <div class="user-sub">Personal Account</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Controls -->
+      <section class="controls-card">
+        <div class="controls-left">
+          <label class="control-label">Month</label>
+          <select id="month-select" class="select">
+            <option value="3">March 2026</option>
+            <option value="4" selected>April 2026</option>
+          </select>
+        </div>
+        <div class="controls-right">
+          <button class="btn-outline" id="btn-export" disabled>
+            Export PDF
+          </button>
+          <button class="btn-primary" id="btn-generate">
+            Generate Summary
+          </button>
+        </div>
+      </section>
+
+      <!-- Loading state -->
+      <div class="loading-block hidden" id="loading">
+        <div class="spinner"></div>
+        <p>Gemini is analysing your transactions…</p>
+      </div>
+
+      <!-- Error state -->
+      <div class="error-block hidden" id="error-block">
+        <span id="error-msg"></span>
+      </div>
+
+      <!-- Summary output -->
+      <div id="summary-output" class="hidden">
+        <!-- Narrative card -->
+        <div class="card" id="narrative-card">
+          <div class="card-header">
+            <div>
+              <div class="card-month" id="card-month-label"></div>
+              <div class="card-title">Your transfer summary</div>
+            </div>
+            <span class="ai-badge">AI · Gemini 2.5 Flash</span>
+          </div>
+          <p class="narrative-text" id="narrative-text"></p>
+
+          <!-- Metrics row -->
+          <div class="metrics-grid">
+            <div class="metric-cell">
+              <div class="metric-label">Total sent</div>
+              <div class="metric-val" id="m-total-gbp"></div>
+              <div class="metric-sub up" id="m-mom"></div>
+            </div>
+            <div class="metric-cell">
+              <div class="metric-label">Recipients received</div>
+              <div class="metric-val" id="m-received"></div>
+              <div class="metric-sub up" id="m-rate-change"></div>
+            </div>
+            <div class="metric-cell">
+              <div class="metric-label">Total fees</div>
+              <div class="metric-val" id="m-fees"></div>
+              <div class="metric-sub" id="m-fee-rate"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rate bar card -->
+        <div class="card">
+          <div class="section-label">
+            Avg. rate vs prior months (LKR per GBP)
+          </div>
+          <div class="rate-bars" id="rate-bars"></div>
+        </div>
+
+        <!-- Nudge card -->
+        <div class="nudge-card" id="nudge-card">
+          <div class="nudge-icon">💡</div>
+          <div class="nudge-text" id="nudge-text"></div>
+        </div>
+
+        <!-- Transactions table -->
+        <div class="card">
+          <div class="section-label">Transaction Detail</div>
+          <div class="table-wrap">
+            <table class="txn-table" id="txn-table">
+              <thead>
+                <tr>
+                  <th>Transaction ID</th>
+                  <th>Recipient</th>
+                  <th>Date</th>
+                  <th>Amount (GBP)</th>
+                  <th>Received</th>
+                  <th>Rate</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="txn-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <!-- /summary-output -->
+    </main>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
