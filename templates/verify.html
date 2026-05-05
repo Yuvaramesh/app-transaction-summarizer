@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ajeer · Recipient Risk Verification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/verify.css') }}" />
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ── Left: Transfer Form ─────────────────────────────────────────── -->
+  <aside class="form-panel">
+    <div class="brand">
+      <a href="/" class="back-btn" title="Back to dashboard">←</a>
+      <span class="brand-mark">A</span>
+      <span class="brand-name">Ajeer</span>
+      <span class="brand-tag">Risk Engine</span>
+    </div>
+
+    <h2 class="form-title">New Transfer</h2>
+    <p class="form-subtitle">Select a sender and recipient from the database, enter the amount, and verify.</p>
+
+    <form id="transferForm" autocomplete="off">
+
+      <!-- Sender -->
+      <fieldset>
+        <legend>Sender (from DB)</legend>
+        <div class="field">
+          <label for="sender_id">Select sender</label>
+          <select id="sender_id" name="sender_id" required>
+            <option value="">Loading senders…</option>
+          </select>
+        </div>
+        <div class="sender-badge" id="senderBadge" hidden>
+          <div class="badge-row">
+            <span class="badge-label">Account age</span>
+            <span class="badge-val" id="badgeAge">—</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-label">Typical transfer</span>
+            <span class="badge-val" id="badgeTypical">—</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-label">Monthly limit</span>
+            <span class="badge-val" id="badgeLimit">—</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-label">Total transfers</span>
+            <span class="badge-val" id="badgeTotal">—</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-label">KYC</span>
+            <span class="badge-val" id="badgeKyc">—</span>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Recipient -->
+      <fieldset>
+        <legend>Recipient (from DB)</legend>
+        <div class="field">
+          <label for="recipient_id">Select recipient</label>
+          <select id="recipient_id" name="recipient_id" required>
+            <option value="">Select a sender first…</option>
+          </select>
+        </div>
+        <div class="sender-badge" id="recipientBadge" hidden>
+          <div class="badge-row">
+            <span class="badge-label">Bank</span>
+            <span class="badge-val" id="rbBank">—</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-label">Country</span>
+            <span class="badge-val" id="rbCountry">—</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-label">Account</span>
+            <span class="badge-val" id="rbAccount">—</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-label">Currency</span>
+            <span class="badge-val" id="rbCurrency">—</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-label">Days since added</span>
+            <span class="badge-val" id="rbDays">—</span>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Amount -->
+      <fieldset>
+        <legend>Transfer amount</legend>
+        <div class="field-row">
+          <div class="field">
+            <label for="amount">Amount (GBP £)</label>
+            <input type="number" id="amount" name="amount" placeholder="e.g. 820" min="1" step="0.01" required />
+          </div>
+          <div class="field">
+            <label for="converted_amount">Recipient gets</label>
+            <input type="text" id="converted_amount" name="converted_amount" placeholder="e.g. 352,624 PKR" required />
+          </div>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="btn-verify" id="verifyBtn">
+        <span class="btn-text">Verify recipient</span>
+        <span class="btn-spinner" hidden>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="2" stroke-dasharray="30" stroke-linecap="round">
+              <animateTransform attributeName="transform" type="rotate" from="0 9 9" to="360 9 9" dur="0.8s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+          Assessing…
+        </span>
+      </button>
+    </form>
+  </aside>
+
+  <!-- ── Right: Result ────────────────────────────────────────────────── -->
+  <main class="result-panel" id="resultPanel">
+    <div class="result-idle" id="resultIdle">
+      <div class="idle-icon">
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+          <circle cx="28" cy="28" r="27" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <path d="M20 28h16M28 20v16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <p>Select a sender &amp; recipient<br/>then click <strong>Verify recipient</strong></p>
+    </div>
+
+    <div class="result-card" id="resultCard" hidden>
+      <div class="tier-tabs">
+        <div class="tier-tab" data-tier="green">Green · Clear</div>
+        <div class="tier-tab" data-tier="amber">Amber · Review</div>
+        <div class="tier-tab" data-tier="red">Red · Hold</div>
+      </div>
+
+      <div class="recipient-row">
+        <div class="recipient-avatar" id="recipientAvatar"></div>
+        <div>
+          <div class="recipient-name" id="recipientName"></div>
+          <div class="recipient-meta" id="recipientMeta"></div>
+        </div>
+      </div>
+
+      <div class="amount-row">
+        <span class="amount-gbp" id="amountGbp"></span>
+        <span class="amount-local" id="amountLocal"></span>
+      </div>
+
+      <div class="verdict-banner" id="verdictBanner">
+        <div class="verdict-icon" id="verdictIcon"></div>
+        <div>
+          <div class="verdict-headline" id="verdictHeadline"></div>
+          <div class="verdict-summary" id="verdictSummary"></div>
+        </div>
+      </div>
+
+      <ul class="signals-list" id="signalsList"></ul>
+
+      <div class="risk-row">
+        <span class="risk-label">Risk score</span>
+        <span class="risk-value" id="riskValue"></span>
+      </div>
+      <div class="risk-bar-track">
+        <div class="risk-bar-fill" id="riskBarFill"></div>
+      </div>
+
+      <div class="db-strip" id="dbStrip"></div>
+
+      <div class="action-row" id="actionRow"></div>
+    </div>
+
+    <div class="result-error" id="resultError" hidden>
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="15" stroke="#e05" stroke-width="1.5"/>
+        <path d="M16 9v9M16 22v1" stroke="#e05" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <p id="errorMsg">Something went wrong.</p>
+    </div>
+  </main>
+
+</div>
+<script src="{{ url_for('static', filename='js/verify.js') }}"></script>
+</body>
+</html>

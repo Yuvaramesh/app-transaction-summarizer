@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ajeer · AI Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0e0e10;
+      --surface: #18181b;
+      --surface-2: #222226;
+      --border: #2e2e34;
+      --text: #f4f4f5;
+      --text-muted: #71717a;
+      --text-dim: #3f3f46;
+      --green: #2ecc8a;
+      --green-glow: rgba(46,204,138,0.15);
+      --amber: #f59e0b;
+      --amber-glow: rgba(245,158,11,0.15);
+      --font: 'Sora', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Subtle grid bg */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.25;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(14,14,16,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-mark {
+      width: 30px; height: 30px;
+      background: var(--green);
+      color: #000;
+      font-weight: 700;
+      font-size: 15px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .brand-name { font-weight: 700; font-size: 17px; letter-spacing: -0.3px; }
+    .brand-pill {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 2px 8px;
+      border-radius: 99px;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .status-label { font-size: 11px; color: var(--text-muted); }
+
+    /* ── Main ── */
+    .main {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 64px 24px 80px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 20px;
+      background: var(--green-glow);
+      border: 1px solid rgba(46,204,138,0.25);
+      padding: 5px 12px;
+      border-radius: 99px;
+    }
+    .hero-title {
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .hero-title span { color: var(--green); }
+    .hero-sub {
+      font-size: 15px;
+      color: var(--text-muted);
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* ── Cards grid ── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 640px) {
+      .cards-grid { grid-template-columns: 1fr; }
+    }
+
+    .tool-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.25s, transform 0.2s, box-shadow 0.25s;
+      cursor: pointer;
+    }
+    .tool-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.3s;
+      border-radius: 20px;
+    }
+    .tool-card.green::before { background: radial-gradient(ellipse at top left, var(--green-glow), transparent 65%); }
+    .tool-card.amber::before  { background: radial-gradient(ellipse at top left, var(--amber-glow), transparent 65%); }
+
+    .tool-card:hover {
+      transform: translateY(-4px);
+    }
+    .tool-card.green:hover {
+      border-color: rgba(46,204,138,0.45);
+      box-shadow: 0 20px 60px rgba(46,204,138,0.1);
+    }
+    .tool-card.amber:hover {
+      border-color: rgba(245,158,11,0.45);
+      box-shadow: 0 20px 60px rgba(245,158,11,0.1);
+    }
+    .tool-card:hover::before { opacity: 1; }
+
+    .card-icon {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+    }
+    .green .card-icon { background: var(--green-glow); border: 1px solid rgba(46,204,138,0.25); }
+    .amber .card-icon  { background: var(--amber-glow); border: 1px solid rgba(245,158,11,0.25); }
+
+    .card-body { position: relative; z-index: 1; flex: 1; }
+    .card-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .green .card-label { color: var(--green); }
+    .amber .card-label  { color: var(--amber); }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      margin-bottom: 10px;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    .card-features {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .feature-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .feature-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .green .feature-dot { background: var(--green); }
+    .amber .feature-dot  { background: var(--amber); }
+
+    .card-cta {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .cta-text {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .green .cta-text { color: var(--green); }
+    .amber .cta-text  { color: var(--amber); }
+
+    .cta-arrow {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      transition: transform 0.2s;
+    }
+    .green .cta-arrow { background: var(--green-glow); color: var(--green); }
+    .amber .cta-arrow  { background: var(--amber-glow); color: var(--amber); }
+    .tool-card:hover .cta-arrow { transform: translateX(4px); }
+
+    /* ── Stats strip ── */
+    .stats-strip {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      margin-top: 56px;
+      padding-top: 40px;
+      border-top: 1px solid var(--border);
+    }
+    .stat-item { text-align: center; }
+    .stat-val {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    @media (max-width: 480px) {
+      .stats-strip { gap: 24px; }
+      .stat-val { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">A</div>
+      <span class="brand-name">Ajeer</span>
+      <span class="brand-pill">AI Platform</span>
+    </div>
+    <div class="topbar-right">
+      <div class="status-dot"></div>
+      <span class="status-label">All systems operational</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="hero">
+      <div class="hero-eyebrow">
+        <span>●</span> Gemini 2.5 Flash Powered
+      </div>
+      <h1 class="hero-title">
+        Intelligent tools for<br/><span>remittance operations</span>
+      </h1>
+      <p class="hero-sub">
+        Two AI-powered modules built for compliance, transparency, and customer insight — all in one platform.
+      </p>
+    </div>
+
+    <div class="cards-grid">
+
+      <!-- Card 1: Summarizer -->
+      <a href="/summarizer" class="tool-card green">
+        <div class="card-icon">📊</div>
+        <div class="card-body">
+          <div class="card-label">Tool 01</div>
+          <div class="card-title">AI Transaction Summarizer</div>
+          <div class="card-desc">
+            Generate personalised monthly transfer summaries with AI narratives, exchange rate insights, and exportable PDF statements for your customers.
+          </div>
+        </div>
+        <div class="card-features">
+          <div class="feature-row">
+            <div class="feature-dot"></div>
+            <span>AI-written narrative summaries per customer</span>
+          </div>
+          <div class="feature-row">
+            <div class="feature-dot"></div>
+            <span>Exchange rate trend analysis & month-over-month</span>
+          </div>
+          <div class="feature-row">
+            <div class="feature-dot"></div>
+            <span>One-click PDF statement export</span>
+          </div>
+          <div class="feature-row">
+            <div class="feature-dot"></div>
+            <span>Forward-looking nudges to encourage on-time transfers</span>
+          </div>
+        </div>
+        <div class="card-cta">
+          <span class="cta-text">Open Summarizer</span>
+          <div class="cta-arrow">→</div>
+        </div>
+      </a>
+
+      <!-- Card 2: Risk Verification -->
+      <a href="/verify" class="tool-card amber">
+        <div class="card-icon">🛡️</div>
+        <div class="card-body">
+          <div class="card-label">Tool 02</div>
+          <div class="card-title">AI Recipient Risk Verification</div>
+          <div class="card-desc">
+            Real-time risk assessment for transfer recipients using live MongoDB data — transfer history, flag counts, and sender behaviour patterns.
+          </div>
+        </div>
+        <div class="card-features">
+          <div class="feature-row">
+            <div class="feature-dot"></div>
+            <span>Green / Amber / Red tier risk scoring</span>
+          </div>
+          <div class="feature-row">
+            <div class="feature-dot"></div>
+            <span>Live 48-hour flag aggregation from MongoDB</span>
+          </div>
+          <div class="feature-row">
+            <div class="feature-dot"></div>
+            <span>Monthly spend limit & anomaly detection</span>
+          </div>
+          <div class="feature-row">
+            <div class="feature-dot"></div>
+            <span>Data-driven compliance signals with real numbers</span>
+          </div>
+        </div>
+        <div class="card-cta">
+          <span class="cta-text">Open Risk Engine</span>
+          <div class="cta-arrow">→</div>
+        </div>
+      </a>
+
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat-item">
+        <div class="stat-val">2</div>
+        <div class="stat-label">AI modules</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val">4</div>
+        <div class="stat-label">MongoDB collections</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val">Gemini</div>
+        <div class="stat-label">2.5 Flash Lite</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val">3-tier</div>
+        <div class="stat-label">Risk scoring</div>
+      </div>
+    </div>
+  </main>
+
+</body>
+</html>
