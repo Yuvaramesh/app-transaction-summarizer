@@ -3,7 +3,13 @@ seed_db.py — Populate MongoDB with sample Ajeer data.
 Run once before starting the app:  python seed_db.py
 """
 
+"""
+seed_db.py — Populate MongoDB with sample Ajeer data.
+Run once before starting the app:  python seed_db.py
+"""
+
 import os
+import certifi
 from datetime import datetime, timedelta, timezone
 from pymongo import MongoClient, ASCENDING
 from dotenv import load_dotenv
@@ -11,9 +17,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
-client = MongoClient(MONGO_URI)
-db = client["ajeer"]
 
+client = MongoClient(
+    MONGO_URI,
+    tlsCAFile=certifi.where(),
+    serverSelectionTimeoutMS=30000,
+)
+_db_name = MONGO_URI.split("/")[-1].split("?")[0] or "ajeer"
+db = client[_db_name]
 # ── Drop existing collections so seed is idempotent ──────────────────────────
 for col in ["senders", "recipients", "transfers", "recipient_flags"]:
     db[col].drop()
@@ -21,6 +32,7 @@ for col in ["senders", "recipients", "transfers", "recipient_flags"]:
 print("Dropped old collections. Seeding fresh data…")
 
 now = datetime.now(timezone.utc)
+
 
 def days_ago(n):
     return now - timedelta(days=n)
@@ -34,7 +46,7 @@ senders = [
         "_id": "S001",
         "full_name": "Kavitha Rajendran",
         "email": "kavitha.r@example.com",
-        "account_created": days_ago(1095),   # 3 years
+        "account_created": days_ago(1095),
         "account_age_label": "3 years",
         "typical_transfer_amount": 240,
         "monthly_limit_gbp": 2000,
@@ -46,7 +58,7 @@ senders = [
         "_id": "S002",
         "full_name": "Arjun Selvam",
         "email": "arjun.s@example.com",
-        "account_created": days_ago(180),    # 6 months
+        "account_created": days_ago(180),
         "account_age_label": "6 months",
         "typical_transfer_amount": 150,
         "monthly_limit_gbp": 1500,
@@ -58,7 +70,7 @@ senders = [
         "_id": "S003",
         "full_name": "Priya Natarajan",
         "email": "priya.n@example.com",
-        "account_created": days_ago(730),    # 2 years
+        "account_created": days_ago(730),
         "account_age_label": "2 years",
         "typical_transfer_amount": 400,
         "monthly_limit_gbp": 3000,
@@ -70,7 +82,7 @@ senders = [
         "_id": "S004",
         "full_name": "Rajan Murugesan",
         "email": "rajan.m@example.com",
-        "account_created": days_ago(30),     # new account
+        "account_created": days_ago(30),
         "account_age_label": "30 days",
         "typical_transfer_amount": 80,
         "monthly_limit_gbp": 500,
@@ -89,7 +101,6 @@ print(f"  ✓ Inserted {len(senders)} senders")
 # RECIPIENTS
 # ─────────────────────────────────────────────────────────────────────────────
 recipients = [
-    # ── Green-tier recipients (clean history) ────────────────────────────────
     {
         "_id": "R001",
         "display_name": "Pommi · Shanthiru Menon",
@@ -126,8 +137,6 @@ recipients = [
         "days_since_added": 60,
         "flag_count_48h": 0,
     },
-
-    # ── Amber-tier recipients (some anomalies) ────────────────────────────────
     {
         "_id": "R004",
         "display_name": "Anitha · ANITHA Nadesan",
@@ -152,8 +161,6 @@ recipients = [
         "days_since_added": 10,
         "flag_count_48h": 1,
     },
-
-    # ── Red-tier recipients (serious flags) ───────────────────────────────────
     {
         "_id": "R006",
         "display_name": "Mohammed Rashid",
@@ -185,62 +192,70 @@ print(f"  ✓ Inserted {len(recipients)} recipients")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TRANSFERS  (past transfer history)
+# TRANSFERS
 # ─────────────────────────────────────────────────────────────────────────────
 transfers = [
-    # S001 → R001 (Pommi, Sri Lanka) — 2 clean transfers
     {
-        "sender_id": "S001", "recipient_id": "R001",
-        "amount_gbp": 356, "destination_currency": "LKR",
-        "converted_amount": 140333, "status": "completed",
+        "sender_id": "S001",
+        "recipient_id": "R001",
+        "amount_gbp": 356,
+        "destination_currency": "LKR",
+        "converted_amount": 140333,
+        "status": "completed",
         "created_at": days_ago(15),
     },
     {
-        "sender_id": "S001", "recipient_id": "R001",
-        "amount_gbp": 320, "destination_currency": "LKR",
-        "converted_amount": 126080, "status": "completed",
+        "sender_id": "S001",
+        "recipient_id": "R001",
+        "amount_gbp": 320,
+        "destination_currency": "LKR",
+        "converted_amount": 126080,
+        "status": "completed",
         "created_at": days_ago(45),
     },
-
-    # S001 → R004 (Anitha, Pakistan) — first ever transfer (no history)
-    # (intentionally no past transfers — makes it amber)
-
-    # S003 → R002 (Meena, India) — many clean transfers
     {
-        "sender_id": "S003", "recipient_id": "R002",
-        "amount_gbp": 390, "destination_currency": "INR",
-        "converted_amount": 41300, "status": "completed",
+        "sender_id": "S003",
+        "recipient_id": "R002",
+        "amount_gbp": 390,
+        "destination_currency": "INR",
+        "converted_amount": 41300,
+        "status": "completed",
         "created_at": days_ago(8),
     },
     {
-        "sender_id": "S003", "recipient_id": "R002",
-        "amount_gbp": 410, "destination_currency": "INR",
-        "converted_amount": 43460, "status": "completed",
+        "sender_id": "S003",
+        "recipient_id": "R002",
+        "amount_gbp": 410,
+        "destination_currency": "INR",
+        "converted_amount": 43460,
+        "status": "completed",
         "created_at": days_ago(38),
     },
     {
-        "sender_id": "S003", "recipient_id": "R002",
-        "amount_gbp": 380, "destination_currency": "INR",
-        "converted_amount": 40280, "status": "completed",
+        "sender_id": "S003",
+        "recipient_id": "R002",
+        "amount_gbp": 380,
+        "destination_currency": "INR",
+        "converted_amount": 40280,
+        "status": "completed",
         "created_at": days_ago(68),
     },
-
-    # S002 → R003 (Dinesh, Sri Lanka) — 1 past transfer
     {
-        "sender_id": "S002", "recipient_id": "R003",
-        "amount_gbp": 145, "destination_currency": "LKR",
-        "converted_amount": 57100, "status": "completed",
+        "sender_id": "S002",
+        "recipient_id": "R003",
+        "amount_gbp": 145,
+        "destination_currency": "LKR",
+        "converted_amount": 57100,
+        "status": "completed",
         "created_at": days_ago(20),
     },
-
-    # S004 → R006 (Mohammed, Bangladesh) — first transfer, high amount
-    # (intentionally no past transfers — makes it red with other signals)
-
-    # S002 → R005 (Siva, Sri Lanka) — first transfer
     {
-        "sender_id": "S002", "recipient_id": "R005",
-        "amount_gbp": 500, "destination_currency": "LKR",
-        "converted_amount": 197000, "status": "pending",
+        "sender_id": "S002",
+        "recipient_id": "R005",
+        "amount_gbp": 500,
+        "destination_currency": "LKR",
+        "converted_amount": 197000,
+        "status": "pending",
         "created_at": days_ago(1),
     },
 ]
@@ -252,25 +267,72 @@ print(f"  ✓ Inserted {len(transfers)} transfers")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# RECIPIENT FLAGS  (compliance flags from other senders)
+# RECIPIENT FLAGS
 # ─────────────────────────────────────────────────────────────────────────────
 flags = [
-    {"recipient_id": "R006", "flagged_by_sender": "S001", "reason": "Suspicious account format", "created_at": days_ago(1)},
-    {"recipient_id": "R006", "flagged_by_sender": "S002", "reason": "Recipient unresponsive after transfer", "created_at": days_ago(0)},
-    {"recipient_id": "R006", "flagged_by_sender": "S003", "reason": "Account number mismatch reported", "created_at": days_ago(0)},
-    {"recipient_id": "R007", "flagged_by_sender": "S001", "reason": "Possible fraud", "created_at": days_ago(1)},
-    {"recipient_id": "R007", "flagged_by_sender": "S002", "reason": "Duplicate of flagged account", "created_at": days_ago(0)},
-    {"recipient_id": "R007", "flagged_by_sender": "S003", "reason": "Reported by recipient's own bank", "created_at": days_ago(0)},
-    {"recipient_id": "R007", "flagged_by_sender": "S004", "reason": "Attempted double transfer", "created_at": days_ago(0)},
-    {"recipient_id": "R007", "flagged_by_sender": "S004", "reason": "AML watchlist match suspected", "created_at": days_ago(0)},
-    {"recipient_id": "R005", "flagged_by_sender": "S003", "reason": "Unusual recipient behaviour", "created_at": days_ago(1)},
+    {
+        "recipient_id": "R006",
+        "flagged_by_sender": "S001",
+        "reason": "Suspicious account format",
+        "created_at": days_ago(1),
+    },
+    {
+        "recipient_id": "R006",
+        "flagged_by_sender": "S002",
+        "reason": "Recipient unresponsive after transfer",
+        "created_at": days_ago(0),
+    },
+    {
+        "recipient_id": "R006",
+        "flagged_by_sender": "S003",
+        "reason": "Account number mismatch reported",
+        "created_at": days_ago(0),
+    },
+    {
+        "recipient_id": "R007",
+        "flagged_by_sender": "S001",
+        "reason": "Possible fraud",
+        "created_at": days_ago(1),
+    },
+    {
+        "recipient_id": "R007",
+        "flagged_by_sender": "S002",
+        "reason": "Duplicate of flagged account",
+        "created_at": days_ago(0),
+    },
+    {
+        "recipient_id": "R007",
+        "flagged_by_sender": "S003",
+        "reason": "Reported by recipient's own bank",
+        "created_at": days_ago(0),
+    },
+    {
+        "recipient_id": "R007",
+        "flagged_by_sender": "S004",
+        "reason": "Attempted double transfer",
+        "created_at": days_ago(0),
+    },
+    {
+        "recipient_id": "R007",
+        "flagged_by_sender": "S004",
+        "reason": "AML watchlist match suspected",
+        "created_at": days_ago(0),
+    },
+    {
+        "recipient_id": "R005",
+        "flagged_by_sender": "S003",
+        "reason": "Unusual recipient behaviour",
+        "created_at": days_ago(1),
+    },
 ]
 
 db["recipient_flags"].insert_many(flags)
-db["recipient_flags"].create_index([("recipient_id", ASCENDING), ("created_at", ASCENDING)])
+db["recipient_flags"].create_index(
+    [("recipient_id", ASCENDING), ("created_at", ASCENDING)]
+)
 print(f"  ✓ Inserted {len(flags)} recipient flags")
 
-print("\n✅ MongoDB seed complete. Collections in 'ajeer' database:")
+print("\n✅ MongoDB seed complete. Collections in database:")
 for col in db.list_collection_names():
     count = db[col].count_documents({})
     print(f"   {col}: {count} documents")

@@ -1,7 +1,8 @@
 import os
 import json
 import calendar
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import Any
 from dotenv import load_dotenv
 
@@ -28,8 +29,7 @@ class TransactionSummarizer:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set.")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        self.client = genai.Client(api_key=api_key)
 
     # ------------------------------------------------------------------
     # Public
@@ -166,7 +166,10 @@ INSTRUCTIONS:
 - Do NOT start with "In {month_name}" — vary the opening
 """.strip()
 
-        response = self.model.generate_content(prompt)
+        response = self.client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+        )
         return response.text.strip()
 
     def _call_gemini_nudge(
@@ -194,5 +197,8 @@ USER: {user['name']}
 Write only the nudge message. Plain text, no markdown, no quotes.
 """.strip()
 
-        response = self.model.generate_content(prompt)
+        response = self.client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+        )
         return response.text.strip()
