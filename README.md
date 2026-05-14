@@ -6,6 +6,7 @@ for the Ajeer remittance customer portal.
 
 ---
 
+
 ## Project structure
 
 ```
