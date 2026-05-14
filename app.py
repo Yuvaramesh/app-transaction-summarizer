@@ -1,35 +1,45 @@
 """
-app.py — Ajeer Unified Dashboard
-Combines: AI Transaction Summarizer + Recipient Risk Verification
-Flask + MongoDB + Gemini
+app.py — Ajeer Unified Dashboard  (ML-enhanced)
+──────────────────────────────────────────────────────────────────────────────
+Changes vs original GitHub version:
+
+Project 1 — Summarizer
+  • summarizer.py now runs ML models (StatisticalAnomalyDetector,
+    TransactionPatternScorer, RateTrendAnalyser) before calling Gemini.
+  • /api/summary response now includes ml_insights alongside metrics.
+
+Project 2 — Risk Verification
+  • /api/assess no longer sends the full prompt to Gemini and trusts it to
+    decide tier/score/signals.
+  • Instead: RiskEngine (XGBoost + Isolation Forest) scores the transfer,
+    builds rule-based signals, then Gemini only writes a 1-2 sentence
+    plain-text explanation of the ML verdict.
+  • All other routes, MongoDB logic, and auth are unchanged.
 """
 
-import os
-import ssl
+import io
 import json
+import os
 import re
-import certifi
 from datetime import datetime, timedelta, timezone
-from flask import Flask, render_template, request, jsonify, send_file
-from pymongo import MongoClient
+
+import certifi
+from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, request, send_file
 from google import genai
 from google.genai import types
-from dotenv import load_dotenv
-import io
+from pymongo import MongoClient
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# ── Gemini ───────────────────────────────────────────────────────────────────
+# ── Gemini ────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# ── MongoDB ──────────────────────────────────────────────────────────────────
+# ── MongoDB ───────────────────────────────────────────────────────────────────
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
-
-import certifi
-
 mongo_client = MongoClient(
     MONGO_URI,
     tlsCAFile=certifi.where(),
@@ -42,18 +52,19 @@ recipients_col = db["recipients"]
 transfers_col = db["transfers"]
 flags_col = db["recipient_flags"]
 
-# ── Summarizer service ───────────────────────────────────────────────────────
-from services.summarizer import TransactionSummarizer
+# ── Services ──────────────────────────────────────────────────────────────────
+from data.mock_data import get_mock_rates, get_mock_transactions, get_mock_user
 from services.pdf_generator import PDFGenerator
-from data.mock_data import get_mock_transactions, get_mock_user, get_mock_rates
+from services.risk_model import get_risk_engine  # NEW — ML risk engine
+from services.summarizer import TransactionSummarizer
 
 summarizer = TransactionSummarizer()
 pdf_gen = PDFGenerator()
 
 
-# ════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════════
 # DASHBOARD
-# ════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════════
 
 
 @app.route("/")
@@ -61,9 +72,9 @@ def dashboard():
     return render_template("dashboard.html")
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# AI TRANSACTION SUMMARIZER  (tool 1)
-# ════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════════
+# PROJECT 1 — AI TRANSACTION SUMMARIZER
+# ═════════════════════════════════════════════════════════════════════════════
 
 
 @app.route("/summarizer")
@@ -84,6 +95,7 @@ def generate_summary():
     if not transactions:
         return jsonify({"error": "No transactions found for the selected period."}), 404
 
+    # summarizer.generate now runs ML models before calling Gemini
     summary = summarizer.generate(user, transactions, rates, month, year)
     return jsonify(summary)
 
@@ -116,44 +128,19 @@ def get_transactions():
     return jsonify(get_mock_transactions(month, year))
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# RECIPIENT RISK VERIFICATION  (tool 2)
-# ════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════════
+# PROJECT 2 — RECIPIENT RISK VERIFICATION  (ML-powered)
+# ═════════════════════════════════════════════════════════════════════════════
 
-RISK_SYSTEM_PROMPT = """You are an AI compliance engine for Ajeer, an international remittance platform.
-Your job is to evaluate international money transfer recipients and produce a structured risk assessment.
+# Gemini is now only asked to explain the ML verdict in plain English.
+_EXPLAIN_SYSTEM_PROMPT = """You are a compliance assistant for Ajeer, an international remittance platform.
+You will receive a completed ML risk assessment and must write a brief, clear explanation for the compliance officer or customer.
 
-You will receive real data fetched from the platform's database including:
-- Sender profile and full transfer history
-- Recipient details, how recently they were added, and how many times they've been flagged
-- The specific transfer being requested
-
-You MUST respond ONLY with a valid JSON object (no markdown, no explanation, no extra text).
-
-Schema:
-{
-  "tier": "green" | "amber" | "red",
-  "risk_score": <integer 0-100>,
-  "headline": "<short title, e.g. 'Recipient verified' | 'Please review before sending' | 'Transfer held for review'>",
-  "summary": "<1-2 sentence explanation>",
-  "signals": [
-    { "status": "ok" | "warn" | "flag", "text": "<specific, data-driven signal>" }
-  ],
-  "action_label": "<CTA button label>",
-  "secondary_label": "<cancel button label or null>"
-}
-
-Scoring guidance:
-- green  0-30:  All signals clean, proceed normally
-- amber 31-65:  Some anomalies, soft friction required
-- red   66-100: Serious flags, hold for compliance review
-
-Signal rules:
-- Always include exactly 3-5 signals. Mix statuses based on actual data.
-- Reference real numbers, dates, and counts from the input, never make up values.
-- Check bank account format validity for the declared country.
-- Flag if: recipient added < 7 days ago, flag_count_48h > 1, amount > 2x sender's typical, monthly limit would be exceeded, sender account is < 90 days old.
-- Positive signals matter too: long transfer history, clean past transfers, valid account format should produce ok signals.
+Rules:
+- Write exactly 1-2 sentences.
+- Reference the tier and one or two of the most important signals by name.
+- Do NOT change the tier, risk score, or signals — those are decided by ML models, not you.
+- Plain text only, no markdown, no JSON.
 """
 
 
@@ -219,6 +206,7 @@ def assess():
     if not sender_id or not recipient_id:
         return jsonify({"error": "sender_id and recipient_id are required"}), 400
 
+    # ── fetch from MongoDB (unchanged) ────────────────────────────────────────
     sender = senders_col.find_one({"_id": sender_id})
     recipient = recipients_col.find_one({"_id": recipient_id})
 
@@ -262,81 +250,102 @@ def assess():
     result = list(transfers_col.aggregate(pipeline))
     monthly_sent = result[0]["total"] if result else 0.0
 
-    history_lines = (
-        "\n".join(
-            f"  - £{t['amount_gbp']} -> {t.get('converted_amount', '?')} {t.get('destination_currency', '')}  "
-            f"({t['status']})  {t['created_at'].strftime('%Y-%m-%d') if t.get('created_at') else 'N/A'}"
-            for t in transfer_history
-        )
-        or "  (no previous transfers to this recipient)"
+    # ── ML risk assessment — replaces full LLM prompt ─────────────────────────
+    engine = get_risk_engine()
+    assessment = engine.assess(
+        amount=amount,
+        sender=sender,
+        recipient=recipient,
+        flag_count=flag_count,
+        past_transfer_count=len(transfer_history),
+        monthly_sent=monthly_sent,
+    )
+    signals = engine.build_signals(
+        assessment=assessment,
+        sender=sender,
+        recipient=recipient,
+        amount=amount,
+        monthly_sent=monthly_sent,
     )
 
+    tier = assessment["tier"]
+    risk_score = assessment["risk_score"]
+
+    # ── tier-to-copy mapping (deterministic, no LLM) ─────────────────────────
+    TIER_COPY = {
+        "green": {
+            "headline": "Recipient verified",
+            "action_label": "Confirm transfer",
+            "secondary_label": None,
+        },
+        "amber": {
+            "headline": "Please review before sending",
+            "action_label": "Proceed with caution",
+            "secondary_label": "Cancel transfer",
+        },
+        "red": {
+            "headline": "Transfer held for review",
+            "action_label": "Escalate to compliance",
+            "secondary_label": "Cancel transfer",
+        },
+    }
+    copy = TIER_COPY[tier]
+
+    # ── Gemini writes ONE explanation sentence (no decisions) ─────────────────
+    try:
+        signal_texts = "; ".join(s["text"] for s in signals[:3])
+        explain_prompt = (
+            f"ML risk assessment result:\n"
+            f"  Tier: {tier}\n"
+            f"  Risk score: {risk_score}/100 "
+            f"(XGBoost: {assessment['xgb_score']}, IsolationForest: {assessment['iso_score']})\n"
+            f"  Top signals: {signal_texts}\n\n"
+            f"Write 1-2 sentences explaining this result to a compliance officer."
+        )
+        explain_response = gemini_client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=explain_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=_EXPLAIN_SYSTEM_PROMPT,
+                temperature=0.1,
+            ),
+        )
+        summary_text = explain_response.text.strip()
+    except Exception as e:
+        summary_text = f"{tier.capitalize()} tier — risk score {risk_score}/100."
+
+    # ── compose final response ────────────────────────────────────────────────
     monthly_limit = sender.get("monthly_limit_gbp", 2000)
     monthly_remaining = monthly_limit - monthly_sent
 
-    prompt = f"""Assess this international transfer:
-
-SENDER:
-- ID: {sender['_id']}
-- Name: {sender['full_name']}
-- KYC status: {sender.get('kyc_status', 'unknown')}
-- Account age: {sender.get('account_age_label', 'unknown')}
-- Typical transfer amount: £{sender.get('typical_transfer_amount', 0)}
-- Total lifetime transfers: {sender.get('total_transfers', 0)}
-- 30-day sending limit: £{monthly_limit}
-- 30-day total sent (from DB): £{monthly_sent:.2f}
-- Remaining this month: £{monthly_remaining:.2f}
-
-RECIPIENT:
-- ID: {recipient['_id']}
-- Name: {recipient['display_name']}
-- Bank: {recipient['bank']}
-- Country: {recipient['country']}
-- Account (masked): {recipient['account_masked']}
-- Days since added to sender account: {recipient['days_since_added']}
-- Times flagged by other senders in past 48h: {flag_count}
-
-PAST TRANSFERS (this sender to this recipient):
-{history_lines}
-
-THIS TRANSFER:
-- Amount: £{amount}
-- Destination: {converted_amount} {recipient['destination_currency']}
-
-Provide the risk assessment JSON now."""
-
-    try:
-        response = gemini_client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=RISK_SYSTEM_PROMPT,
-                temperature=0.2,
-                response_mime_type="application/json",
-            ),
-        )
-        raw = response.text.strip()
-        raw = re.sub(r"^```json\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
-        result = json.loads(raw)
-    except json.JSONDecodeError as e:
-        return jsonify({"error": f"AI parse error: {e}"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    result["_meta"] = {
-        "sender_name": sender["full_name"],
-        "recipient_name": recipient["display_name"],
-        "recipient_bank": recipient["bank"],
-        "recipient_country": recipient["country"],
-        "account_masked": recipient["account_masked"],
-        "past_transfer_count": len(transfer_history),
-        "monthly_sent": monthly_sent,
-        "monthly_limit": sender.get("monthly_limit_gbp", 2000),
-        "destination_currency": recipient["destination_currency"],
+    result_payload = {
+        "tier": tier,
+        "risk_score": risk_score,
+        "headline": copy["headline"],
+        "summary": summary_text,
+        "signals": signals,
+        "action_label": copy["action_label"],
+        "secondary_label": copy["secondary_label"],
+        # ML debug info — visible in the db-strip on the frontend
+        "_ml_debug": {
+            "xgb_score": assessment["xgb_score"],
+            "iso_score": assessment["iso_score"],
+            "is_outlier": assessment["is_outlier"],
+        },
+        "_meta": {
+            "sender_name": sender["full_name"],
+            "recipient_name": recipient["display_name"],
+            "recipient_bank": recipient["bank"],
+            "recipient_country": recipient["country"],
+            "account_masked": recipient["account_masked"],
+            "past_transfer_count": len(transfer_history),
+            "monthly_sent": monthly_sent,
+            "monthly_limit": monthly_limit,
+            "destination_currency": recipient["destination_currency"],
+        },
     }
 
-    return jsonify(result)
+    return jsonify(result_payload)
 
 
 if __name__ == "__main__":
