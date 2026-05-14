@@ -131,4 +131,4 @@ Each transaction dict must include:
 
 Edit the `_call_gemini` and `_call_gemini_nudge` methods in
 `services/summarizer.py` to adjust tone, length, or language of the
-AI-generated content.
+AI-generated content
