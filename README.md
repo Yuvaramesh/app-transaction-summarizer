@@ -4,7 +4,7 @@ A Flask application that uses **Gemini 2.5 Flash Lite** to generate
 personalised monthly transfer summaries and exportable PDF statements
 for the Ajeer remittance customer portal.
 
----
+----
 
 ## Project structure
 
